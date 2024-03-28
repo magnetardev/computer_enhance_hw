@@ -1,62 +1,43 @@
 #include "util.h"
+#include <fcntl.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 /// Reads an entire file into memory from path and assigns it to *buf.
 /// Returns -1 on error, cleanup is already done.
 ssize_t read_file(const char* path, uint8_t** buf)
 {
-    FILE* file = fopen(path, "r");
-    if (file == NULL) {
-        fprintf(stderr, "failed to open input: %s\n", path);
+    int fd = open(path, O_RDONLY);
+    if (fd == -1) {
+        perror("failed to open file");
         return -1;
     }
 
-    // for now just be lazy and read the entire file contents
-
-    if (fseek(file, 0, SEEK_END) != 0) {
+    off_t len = lseek(fd, 0, SEEK_END);
+    if (len == -1) {
         perror("failed to seek to end of file");
-        fclose(file);
         return -1;
     }
 
-    size_t len = ftell(file);
-    if (len == -1L) {
-        perror("failed to get file length");
-        fclose(file);
-        return -1;
-    }
-
-    if (len & 1) {
-        fprintf(stderr, "invalid file length, expected an even length, got %zu\n", len);
-        fclose(file);
-        return -1;
-    }
-
-    if (fseek(file, 0, SEEK_SET) != 0) {
-        perror("failed to seek to start of file");
-        fclose(file);
+    if (lseek(fd, 0, SEEK_SET) == -1) {
+        perror("failed to seek to end of file");
         return -1;
     }
 
     *buf = malloc(len);
-    if (*buf == NULL) {
-        perror("failed to allocate buffer");
-        fclose(file);
-        return -1;
-    }
 
-    if (fread(*buf, sizeof(uint8_t), len, file) != len) {
-        if (feof(file)) {
-            fputs("unexpected eof\n", stderr);
-        } else if (ferror(file)) {
-            perror("failed to read file");
+    int amt_read_total = 0;
+    while (amt_read_total != len) {
+        ssize_t amt_read = read(fd, &*buf[amt_read_total], len);
+        if (amt_read == -1) {
+            perror("failed to read from file");
+            free(*buf);
+            close(fd);
+            return -1;
         }
-
-        free(*buf);
-        fclose(file);
-        return -1;
+        amt_read_total += amt_read;
     }
 
-    fclose(file);
+    close(fd);
     return len;
 }

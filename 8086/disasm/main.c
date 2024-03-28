@@ -1,4 +1,6 @@
 #include "util.h"
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 #pragma mark - type/enum/const definitions
@@ -10,11 +12,7 @@ enum ModeField {
     MOD_REG = 0b11,
 };
 
-enum Opcode {
-    OPCODE_MOV = 0b100010,
-};
-
-const char REGISTER_NAMES[8][2][2] = {
+const char* REGISTER_NAMES[8][2] = {
     { "al", "ax" },
     { "cl", "cx" },
     { "dl", "dx" },
@@ -23,6 +21,17 @@ const char REGISTER_NAMES[8][2][2] = {
     { "ch", "bp" },
     { "dh", "si" },
     { "bh", "di" },
+};
+
+const char* REGISTER_EFFECTIVE_ACCESS[8] = {
+    "bx + si",
+    "bx + di",
+    "bp + si",
+    "bp + di",
+    "si",
+    "di",
+    "bp",
+    "bx",
 };
 
 /// One bit to indicate the direction of the instruction.
@@ -36,6 +45,10 @@ typedef uint8_t Direction;
 typedef uint8_t Width;
 
 #pragma mark - implementation
+
+// bool read_immediate()
+// {
+// }
 
 int main(int argc, const char** argv)
 {
@@ -55,29 +68,95 @@ int main(int argc, const char** argv)
     printf("; %s\n", path);
     puts("bits 16\n");
 
-    // we increment by 2 here but may increment more depending on the instruction.
-    for (size_t i = 0; i < len; i += 2) {
-        uint8_t byte_a = buf[i];
-        uint8_t opcode = byte_a >> 2;
-        Direction d = (byte_a >> 1) & 0b1;
-        Width w = byte_a & 0b1;
-
-        uint8_t byte_b = buf[i + 1];
-        enum ModeField mod = byte_b >> 6;
-        uint8_t reg = (byte_b >> 3) & 0b111;
-        uint8_t rm = byte_b & 0b111;
-
+    size_t i = 0;
+    // NOTE: bounds checking does not occur besides this check. Machine code must be well formed.
+    while (i < len) {
         // now handle the opcode
-        switch (opcode) {
-        case OPCODE_MOV:
-            if (mod == MOD_REG) {
-                const char* src = REGISTER_NAMES[d ? rm : reg][w];
-                const char* dst = REGISTER_NAMES[d ? reg : rm][w];
-                printf("mov %c%c, %c%c\n", dst[0], dst[1], src[0], dst[1]);
+        uint8_t byte_a = buf[i++];
+        // MOV (register/memory <-> register)
+        if ((byte_a & 0b11111100) == 0b10001000) {
+            Direction dir = (byte_a >> 1) & 0b1;
+            Width is_word = byte_a & 0b1;
+
+            uint8_t byte_b = buf[i++];
+            enum ModeField mod = byte_b >> 6;
+            uint8_t reg = (byte_b >> 3) & 0b111;
+            uint8_t rm = byte_b & 0b111;
+
+            switch (mod) {
+            case MOD_MEM: {
+                const char* reg_str = REGISTER_NAMES[reg][is_word];
+                if (rm == 0b110) {
+                    uint8_t disp_lo = buf[i++];
+                    uint8_t disp_hi = buf[i++];
+                    uint16_t addr = (disp_hi << 8) | disp_lo;
+                    if (dir) {
+                        printf("mov %s, [%d]\n", reg_str, addr);
+                    } else {
+                        printf("mov [%d], %s\n", addr, reg_str);
+                    }
+                } else {
+                    const char* ea = REGISTER_EFFECTIVE_ACCESS[rm];
+                    if (dir) {
+                        printf("mov %s, [%s]\n", reg_str, ea);
+                    } else {
+                        printf("mov [%s], %s\n", ea, reg_str);
+                    }
+                }
+                break;
             }
-            break;
-        default:
-            break;
+            case MOD_MEM_8BIT: {
+                uint8_t immediate = buf[i++];
+                const char* reg_str = REGISTER_NAMES[reg][is_word];
+                const char* ea = REGISTER_EFFECTIVE_ACCESS[rm];
+                if (dir) {
+                    printf("mov %s, [%s + %d]\n", reg_str, ea, immediate);
+                } else {
+                    printf("mov [%s + %d], %s\n", ea, immediate, reg_str);
+                }
+                break;
+            }
+            case MOD_MEM_16BIT: {
+                uint8_t disp_lo = buf[i++];
+                uint8_t disp_hi = buf[i++];
+                uint16_t immediate = (disp_hi << 8) | disp_lo;
+
+                const char* reg_str = REGISTER_NAMES[reg][is_word];
+                const char* ea = REGISTER_EFFECTIVE_ACCESS[rm];
+                if (dir) {
+                    printf("mov %s, [%s + %d]\n", reg_str, ea, immediate);
+                } else {
+                    printf("mov [%s + %d], %s\n", ea, immediate, reg_str);
+                }
+                break;
+            }
+            case MOD_REG: {
+                const char* src = REGISTER_NAMES[dir ? rm : reg][is_word];
+                const char* dst = REGISTER_NAMES[dir ? reg : rm][is_word];
+                printf("mov %s, %s\n", dst, src);
+                break;
+            }
+            }
+        }
+        // MOV (immediate -> register)
+        else if ((byte_a & 0b11110000) == 0b10110000) {
+            Width is_word = (byte_a >> 3) & 0b1;
+            uint8_t reg = byte_a & 0b111;
+
+            uint16_t data = 0;
+            if (is_word) {
+                uint8_t data_a = buf[i++];
+                uint8_t data_b = buf[i++];
+                data = (data_b << 8) | data_a;
+            } else {
+                data = buf[i++];
+            }
+
+            printf("mov %s, %d\n", REGISTER_NAMES[reg][is_word], data);
+        }
+        // Unknown instruction handling
+        else {
+            puts("; unknown instruction");
         }
     }
 
