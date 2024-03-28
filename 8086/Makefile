@@ -1,7 +1,7 @@
 CC ?= clang
 NASM ?= nasm
 DISASM_BIN = ./disasm/disasm
-DISASM_SRC = ./disasm/main.c ./disasm/util.c
+DISASM_SRC = ./disasm/main.c ./disasm/util.c ./disasm/asm.c ./disasm/inst/mov.c
 
 ASM_SRCS=$(wildcard ./asm/*.asm)
 ASM_BINS=$(ASM_SRCS:%.asm=%.bin)
@@ -17,9 +17,9 @@ $(DISASM_BIN):
 	$(NASM) $< -o $@
 
 clean-bins:
-	rm $(ASM_BINS)
+	rm -f $(ASM_BINS)
 
 clean-disasm:
-	rm $(DISASM_BIN)
+	rm -f $(DISASM_BIN)
 
 clean: clean-bins clean-disasm
