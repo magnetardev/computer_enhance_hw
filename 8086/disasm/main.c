@@ -102,27 +102,27 @@ int main(int argc, const char** argv)
                 break;
             }
             case MOD_MEM_8BIT: {
-                uint8_t immediate = buf[i++];
+                uint8_t offset = buf[i++];
                 const char* reg_str = REGISTER_NAMES[reg][is_word];
                 const char* ea = REGISTER_EFFECTIVE_ACCESS[rm];
                 if (dir) {
-                    printf("mov %s, [%s + %d]\n", reg_str, ea, immediate);
+                    printf("mov %s, [%s + %d]\n", reg_str, ea, offset);
                 } else {
-                    printf("mov [%s + %d], %s\n", ea, immediate, reg_str);
+                    printf("mov [%s + %d], %s\n", ea, offset, reg_str);
                 }
                 break;
             }
             case MOD_MEM_16BIT: {
                 uint8_t disp_lo = buf[i++];
                 uint8_t disp_hi = buf[i++];
-                uint16_t immediate = (disp_hi << 8) | disp_lo;
+                uint16_t offset = (disp_hi << 8) | disp_lo;
 
                 const char* reg_str = REGISTER_NAMES[reg][is_word];
                 const char* ea = REGISTER_EFFECTIVE_ACCESS[rm];
                 if (dir) {
-                    printf("mov %s, [%s + %d]\n", reg_str, ea, immediate);
+                    printf("mov %s, [%s + %d]\n", reg_str, ea, offset);
                 } else {
-                    printf("mov [%s + %d], %s\n", ea, immediate, reg_str);
+                    printf("mov [%s + %d], %s\n", ea, offset, reg_str);
                 }
                 break;
             }
@@ -139,16 +139,16 @@ int main(int argc, const char** argv)
             Width is_word = (byte_a >> 3) & 0b1;
             uint8_t reg = byte_a & 0b111;
 
-            uint16_t data = 0;
+            uint16_t immediate = 0;
             if (is_word) {
                 uint8_t data_a = buf[i++];
                 uint8_t data_b = buf[i++];
-                data = (data_b << 8) | data_a;
+                immediate = (data_b << 8) | data_a;
             } else {
-                data = buf[i++];
+                immediate = buf[i++];
             }
 
-            printf("mov %s, %d\n", REGISTER_NAMES[reg][is_word], data);
+            printf("mov %s, %d\n", REGISTER_NAMES[reg][is_word], immediate);
         }
         // Unknown instruction handling
         else {
