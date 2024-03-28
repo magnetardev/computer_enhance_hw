@@ -46,10 +46,6 @@ typedef uint8_t Width;
 
 #pragma mark - implementation
 
-// bool read_immediate()
-// {
-// }
-
 int main(int argc, const char** argv)
 {
     if (argc != 2) {
